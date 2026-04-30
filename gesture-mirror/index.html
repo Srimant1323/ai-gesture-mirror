@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Gesture Mirror — Superhero Aura & Hand Effects</title>
+<meta name="description" content="Real-time AI gesture detection with magical visual effects. Snap fingers for hearts, form a heart shape for flowers."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --neon-pink:#ff2d78;--neon-blue:#00d4ff;--neon-purple:#a855f7;
+  --neon-gold:#ffd700;--bg:#050510;
+}
+body{background:var(--bg);font-family:'Inter',sans-serif;color:#fff;overflow:hidden;height:100vh;width:100vw}
+
+#app{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+
+#videoWrap{position:relative;width:100%;height:100%;overflow:hidden}
+#video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.85}
+#canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#auraCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:4}
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5}
+
+/* Aura mode pills */
+#auraPicker{position:absolute;top:70px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:10}
+.aura-btn{border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:6px 14px;font-size:.72rem;font-family:inherit;cursor:pointer;backdrop-filter:blur(10px);color:#fff;transition:all .25s;background:rgba(255,255,255,.06)}
+.aura-btn:hover,.aura-btn.on{transform:scale(1.05)}
+.aura-btn.on{box-shadow:0 0 18px var(--glow,#ff6600)}
+#btn-fire.on{background:linear-gradient(135deg,#ff2200,#ff8800);--glow:#ff6600}
+#btn-plasma.on{background:linear-gradient(135deg,#5000ff,#00d4ff);--glow:#00d4ff}
+#btn-gold.on{background:linear-gradient(135deg,#b8860b,#ffd700);--glow:#ffd700}
+#btn-off.on{background:rgba(255,255,255,.12)}
+
+/* HUD */
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:20px 28px;z-index:10}
+.brand{font-size:1.1rem;font-weight:700;letter-spacing:.08em;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.brand span{font-weight:300;opacity:.6}
+.status-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:6px 14px;font-size:.75rem;backdrop-filter:blur(12px)}
+.dot{width:8px;height:8px;border-radius:50%;background:#555;transition:background .4s}
+.dot.active{background:#00ff88;box-shadow:0 0 8px #00ff88}
+.dot.detecting{background:var(--neon-gold);box-shadow:0 0 8px var(--neon-gold);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Gesture hints */
+#hints{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10;flex-wrap:wrap;justify-content:center}
+.hint{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:8px 18px;font-size:.75rem;color:rgba(255,255,255,.7);backdrop-filter:blur(10px);transition:all .3s}
+.hint.active{background:rgba(168,85,247,.25);border-color:var(--neon-purple);color:#fff;box-shadow:0 0 20px rgba(168,85,247,.4)}
+
+/* Permission screen */
+#permScreen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:var(--bg);z-index:100}
+#permScreen h1{font-size:2rem;font-weight:700;background:linear-gradient(135deg,var(--neon-blue),var(--neon-purple),var(--neon-pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#permScreen p{color:rgba(255,255,255,.5);font-size:.95rem;text-align:center;max-width:320px;line-height:1.6}
+#startBtn{background:linear-gradient(135deg,var(--neon-purple),var(--neon-pink));border:none;color:#fff;font-size:1rem;font-weight:600;padding:14px 36px;border-radius:999px;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 0 30px rgba(168,85,247,.5)}
+#startBtn:hover{transform:scale(1.05);box-shadow:0 0 50px rgba(168,85,247,.8)}
+.icon-big{font-size:4rem;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+
+/* Ambient background orbs */
+.orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.18;animation:orbFloat 8s ease-in-out infinite;pointer-events:none}
+.orb1{width:400px;height:400px;background:var(--neon-purple);top:-100px;left:-100px;animation-delay:0s}
+.orb2{width:300px;height:300px;background:var(--neon-pink);bottom:-80px;right:-80px;animation-delay:-3s}
+.orb3{width:250px;height:250px;background:var(--neon-blue);top:50%;right:10%;animation-delay:-5s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,20px) scale(1.1)}}
+
+/* Effect elements injected via JS */
+.heart-particle{position:absolute;pointer-events:none;font-size:2.5rem;animation:heartRise 2.2s ease-out forwards;z-index:50;user-select:none}
+@keyframes heartRise{
+  0%{transform:translate(-50%,-50%) scale(0) rotate(-10deg);opacity:1}
+  30%{transform:translate(-50%,-80%) scale(1.4) rotate(5deg);opacity:1}
+  60%{transform:translate(-50%,-160%) scale(1) rotate(-3deg);opacity:.7}
+  100%{transform:translate(-50%,-280%) scale(.6) rotate(8deg);opacity:0}
+}
+.spark{position:absolute;pointer-events:none;border-radius:50%;animation:sparkFly var(--dur,.8s) ease-out forwards;z-index:49}
+@keyframes sparkFly{
+  0%{transform:translate(-50%,-50%) scale(1);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx,30px)), calc(-50% + var(--dy,-60px))) scale(0);opacity:0}
+}
+.petal{position:absolute;pointer-events:none;border-radius:50% 0 50% 0;animation:petalBloom var(--delay,.3s) ease-out forwards;transform-origin:center bottom;z-index:50}
+@keyframes petalBloom{
+  0%{transform:rotate(var(--angle,0deg)) scaleY(0) scaleX(.3);opacity:0}
+  50%{opacity:1}
+  100%{transform:rotate(var(--angle,0deg)) scaleY(1) scaleX(1);opacity:.85}
+}
+.flower-wrap{position:absolute;pointer-events:none;z-index:50;animation:flowerAppear 3.5s ease-out forwards}
+@keyframes flowerAppear{
+  0%{transform:translate(-50%,-50%) scale(0) rotate(-45deg);opacity:0}
+  30%{transform:translate(-50%,-50%) scale(1.1) rotate(5deg);opacity:1}
+  70%{transform:translate(-50%,-50%) scale(1) rotate(0deg);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(.8) rotate(10deg);opacity:0}
+}
+.star-particle{position:absolute;pointer-events:none;animation:starDrift var(--dur,2s) ease-out forwards;z-index:50;font-size:1.4rem}
+@keyframes starDrift{
+  0%{transform:translate(-50%,-50%) scale(0);opacity:1}
+  50%{opacity:1;transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,-40px))) scale(1.2)}
+  100%{transform:translate(calc(-50% + var(--dx2,0px)),calc(-50% + var(--dy2,-100px))) scale(.4);opacity:0}
+}
+.butterfly{position:absolute;pointer-events:none;font-size:1.8rem;animation:butterflyFly var(--dur,3s) ease-in-out forwards;z-index:50}
+@keyframes butterflyFly{
+  0%{transform:translate(-50%,-50%) scale(0) rotate(0deg);opacity:0}
+  20%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-10deg)}
+  60%{transform:translate(calc(-50% + var(--dx,50px)),calc(-50% + var(--dy,-80px))) scale(1.1) rotate(20deg)}
+  100%{transform:translate(calc(-50% + var(--dx2,100px)),calc(-50% + var(--dy2,-200px))) scale(.5) rotate(45deg);opacity:0}
+}
+.glow-ring{position:absolute;pointer-events:none;border-radius:50%;animation:ringExpand 1s ease-out forwards;z-index:48}
+@keyframes ringExpand{
+  0%{width:20px;height:20px;opacity:1;transform:translate(-50%,-50%)}
+  100%{width:120px;height:120px;opacity:0;transform:translate(-50%,-50%)}
+}
+</style>
+</head>
+<body>
+<div id="permScreen">
+  <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
+  <div class="icon-big">🤌</div>
+  <h1>AI Gesture Mirror</h1>
+  <p>Use your hands to create magical effects. Snap your fingers for hearts, form a heart with both hands for flowers, open palm for stars, peace sign for butterflies!</p>
+  <button id="startBtn">✨ Enable Camera</button>
+</div>
+
+<div id="app" style="display:none">
+  <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
+  <div id="videoWrap">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+    <canvas id="auraCanvas"></canvas>
+    <div id="overlay"></div>
+  </div>
+  <div id="hud">
+    <div class="brand">Gesture<span>Mirror</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="status-pill"><div class="dot" id="camDot"></div><span id="camTxt">Camera</span></div>
+      <div class="status-pill"><div class="dot" id="mlDot"></div><span id="mlTxt">AI Loading…</span></div>
+    </div>
+  </div>
+  <div id="auraPicker">
+    <button class="aura-btn on" id="btn-fire" onclick="setAuraTheme('fire',this)">🔥 Fire Aura</button>
+    <button class="aura-btn" id="btn-plasma" onclick="setAuraTheme('plasma',this)">⚡ Plasma Aura</button>
+    <button class="aura-btn" id="btn-gold" onclick="setAuraTheme('gold',this)">✨ Gold Aura</button>
+    <button class="aura-btn" id="btn-off" onclick="setAuraTheme('off',this)">○ Off</button>
+  </div>
+  <div id="hints">
+    <div class="hint" id="hint-snap">🫰 Snap → Hearts</div>
+    <div class="hint" id="hint-heart">🫶 Both Hands Heart → Flower</div>
+    <div class="hint" id="hint-palm">✋ Open Palm → Stars</div>
+    <div class="hint" id="hint-peace">✌️ Peace → Butterflies</div>
+  </div>
+</div>
+
+<!-- MediaPipe via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Aura theme switcher (runs before aura.js so the var is ready) ──────────
+window._auraTheme = 'fire';
+window._auraOn    = true;
+
+window.AURA_PALETTES = {
+  fire: {
+    Right:[{r:255,g:60,b:0},{r:255,g:140,b:0},{r:255,g:220,b:20},{r:255,g:255,b:200}],
+    Left: [{r:255,g:60,b:0},{r:255,g:140,b:0},{r:255,g:220,b:20},{r:255,g:255,b:200}]
+  },
+  plasma:{
+    Right:[{r:80,g:0,b:255},{r:0,g:120,b:255},{r:0,g:230,b:255},{r:200,g:255,b:255}],
+    Left: [{r:200,g:0,b:255},{r:160,g:0,b:255},{r:80,g:0,b:255},{r:255,g:200,b:255}]
+  },
+  gold:{
+    Right:[{r:180,g:100,b:0},{r:230,g:160,b:0},{r:255,g:215,b:0},{r:255,g:255,b:200}],
+    Left: [{r:180,g:100,b:0},{r:230,g:160,b:0},{r:255,g:215,b:0},{r:255,g:255,b:200}]
+  }
+};
+
+window.setAuraTheme = function(name, btn){
+  document.querySelectorAll('.aura-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  if(name==='off'){ window._auraOn=false; return; }
+  window._auraOn   = true;
+  window._auraTheme= name;
+};
+</script>
+
+<script>
+// ─── Utilities ───────────────────────────────────────────────────────────────
+const overlay = document.getElementById('overlay');
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+
+function rand(a,b){return Math.random()*(b-a)+a}
+function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+
+function screenPos(lm, vw, vh){
+  // MediaPipe gives normalized [0,1]; video is mirrored via CSS so flip x
+  return { x:(1-lm.x)*vw, y:lm.y*vh };
+}
+
+// Resize canvas to match window
+function resizeCanvas(){
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ─── Effect spawners ──────────────────────────────────────────────────────────
+function spawnHeart(x, y, size=2.5){
+  const el = document.createElement('div');
+  el.className = 'heart-particle';
+  el.style.cssText = `left:${x}px;top:${y}px;font-size:${size}rem`;
+  const hearts = ['❤️','💖','💗','💓','💞'];
+  el.textContent = hearts[Math.floor(Math.random()*hearts.length)];
+  overlay.appendChild(el);
+  setTimeout(()=>el.remove(), 2400);
+  spawnSparks(x,y,'#ff2d78');
+  spawnGlowRing(x,y,'rgba(255,45,120,0.6)');
+  playTone(440,.15,.4);
+}
+
+function spawnSparks(x,y,color,count=10){
+  for(let i=0;i<count;i++){
+    const s = document.createElement('div');
+    s.className = 'spark';
+    const ang = rand(0,Math.PI*2);
+    const dist = rand(40,100);
+    s.style.cssText = `left:${x}px;top:${y}px;width:6px;height:6px;background:${color};`+
+      `--dx:${Math.cos(ang)*dist}px;--dy:${Math.sin(ang)*dist}px;--dur:${rand(.5,1)}s;box-shadow:0 0 6px ${color}`;
+    overlay.appendChild(s);
+    setTimeout(()=>s.remove(),1000);
+  }
+}
+
+function spawnGlowRing(x,y,color){
+  const r = document.createElement('div');
+  r.className = 'glow-ring';
+  r.style.cssText = `left:${x}px;top:${y}px;border:2px solid ${color};box-shadow:0 0 15px ${color}`;
+  overlay.appendChild(r);
+  setTimeout(()=>r.remove(),1100);
+}
+
+function spawnFlower(x,y){
+  const wrap = document.createElement('div');
+  wrap.className = 'flower-wrap';
+  wrap.style.cssText = `left:${x}px;top:${y}px;width:120px;height:120px`;
+  const colors=['#ff6b9d','#ff9f43','#ffd700','#ff4757','#a29bfe','#fd79a8'];
+  for(let i=0;i<8;i++){
+    const p = document.createElement('div');
+    p.className='petal';
+    const hue = colors[i%colors.length];
+    p.style.cssText=`width:40px;height:60px;background:radial-gradient(ellipse, ${hue} 0%, transparent 80%);`+
+      `left:40px;top:30px;--angle:${i*45}deg;--delay:${i*.12}s;`+
+      `box-shadow:0 0 20px ${hue}55;animation-delay:${i*.12}s`;
+    wrap.appendChild(p);
+  }
+  // Center circle
+  const center = document.createElement('div');
+  center.style.cssText='position:absolute;width:24px;height:24px;background:radial-gradient(circle,#ffd700,#ff8c00);border-radius:50%;left:48px;top:48px;box-shadow:0 0 20px #ffd700;z-index:1';
+  wrap.appendChild(center);
+  overlay.appendChild(wrap);
+  setTimeout(()=>wrap.remove(),3700);
+  spawnSparks(x,y,'#ffd700',20);
+  // Ambient glow
+  for(let i=0;i<5;i++){
+    setTimeout(()=>spawnGlowRing(x,y,'rgba(255,215,0,0.5)'),i*200);
+  }
+  playChord([261,329,392,523],.2,.6);
+}
+
+function spawnStars(x,y,count=12){
+  const icons=['⭐','✨','💫','🌟'];
+  for(let i=0;i<count;i++){
+    const el=document.createElement('div');
+    el.className='star-particle';
+    const ang=rand(0,Math.PI*2);
+    const d1=rand(60,120),d2=rand(100,200);
+    el.style.cssText=`left:${x}px;top:${y}px;--dx:${Math.cos(ang)*d1}px;--dy:${Math.sin(ang)*d1}px;`+
+      `--dx2:${Math.cos(ang)*d2}px;--dy2:${Math.sin(ang)*d2}px;--dur:${rand(1.5,2.5)}s;animation-delay:${rand(0,.3)}s`;
+    el.textContent=icons[Math.floor(Math.random()*icons.length)];
+    overlay.appendChild(el);
+    setTimeout(()=>el.remove(),2700);
+  }
+  playTone(660,.1,.5);
+}
+
+function spawnButterflies(x,y,count=5){
+  const icons=['🦋','🌸','🍃'];
+  for(let i=0;i<count;i++){
+    const el=document.createElement('div');
+    el.className='butterfly';
+    const ang=rand(-Math.PI,0);
+    const d=rand(100,200);
+    el.style.cssText=`left:${x+rand(-60,60)}px;top:${y}px;`+
+      `--dx:${Math.cos(ang)*d}px;--dy:${Math.sin(ang)*d}px;`+
+      `--dx2:${Math.cos(ang)*d*1.8}px;--dy2:${Math.sin(ang)*d*1.8}px;`+
+      `--dur:${rand(2.5,4)}s;animation-delay:${i*.15}s`;
+    el.textContent=icons[Math.floor(Math.random()*icons.length)];
+    overlay.appendChild(el);
+    setTimeout(()=>el.remove(),4200);
+  }
+  playTone(528,.08,.6);
+}
+
+// ─── Audio ────────────────────────────────────────────────────────────────────
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq,vol=.15,dur=.4){
+  try{
+    const ac=getAudioCtx();
+    const osc=ac.createOscillator();
+    const gain=ac.createGain();
+    osc.connect(gain);gain.connect(ac.destination);
+    osc.frequency.value=freq;
+    osc.type='sine';
+    gain.gain.setValueAtTime(vol,ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001,ac.currentTime+dur);
+    osc.start();osc.stop(ac.currentTime+dur);
+  }catch(e){}
+}
+function playChord(freqs,vol,dur){
+  freqs.forEach((f,i)=>setTimeout(()=>playTone(f,vol,dur),i*60));
+}
+
+// ─── Gesture Engine ───────────────────────────────────────────────────────────
+const COOLDOWNS={snap:1500,heart:4000,palm:2000,peace:2000};
+const lastFired={snap:0,heart:0,palm:0,peace:0};
+
+function canFire(name){
+  const now=Date.now();
+  if(now-lastFired[name]>COOLDOWNS[name]){lastFired[name]=now;return true;}
+  return false;
+}
+
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+
+// Finger extended: tip y < pip y (in normalized coords, y increases downward)
+function fingerExtended(lm,tip,pip){return lm[tip].y<lm[pip].y}
+
+// ── Improved gesture detection with margin thresholds ──────────────────────
+// Uses pixel-margin (in normalized units) to avoid borderline false reads
+const MARGIN = 0.035; // must exceed this margin to count as extended/curled
+
+function extendedBy(lm,tip,pip){
+  return (lm[pip].y - lm[tip].y) > MARGIN; // tip clearly above pip = extended
+}
+function curledBy(lm,tip,pip){
+  return (lm[tip].y - lm[pip].y) > MARGIN; // tip clearly below pip = curled
+}
+
+// Open palm: ALL 4 fingers clearly extended
+function isOpenPalm(lm){
+  const pairs=[[8,6],[12,10],[16,14],[20,18]];
+  return pairs.every(([t,p])=>extendedBy(lm,t,p));
+}
+
+// Fist: ALL 4 fingers clearly curled, thumb tip low
+function isFist(lm){
+  const pairs=[[8,6],[12,10],[16,14],[20,18]];
+  const allCurled = pairs.every(([t,p])=>curledBy(lm,t,p));
+  // thumb tip below wrist y = folded in
+  const thumbDown = lm[4].y > lm[0].y - 0.05;
+  return allCurled && thumbDown;
+}
+
+// Thumb up: fingers curled, thumb tip significantly above wrist
+function isThumbUp(lm){
+  const pairs=[[8,6],[12,10],[16,14],[20,18]];
+  const allCurled = pairs.every(([t,p])=>curledBy(lm,t,p));
+  const thumbHighAboveWrist = lm[0].y - lm[4].y > 0.10; // wrist y > thumb tip y
+  return allCurled && thumbHighAboveWrist;
+}
+
+// Peace: index+middle clearly extended, ring+pinky clearly curled
+function isPeaceSign(lm){
+  return extendedBy(lm,8,6) && extendedBy(lm,12,10)
+      && curledBy(lm,16,14) && curledBy(lm,20,18);
+}
+
+// ── Named gesture classifier — returns single label per hand ────────────────
+// Priority order matters: thumb up must check before fist, etc.
+function classifyGesture(lm){
+  if(isThumbUp(lm))  return 'thumbUp';
+  if(isFist(lm))     return 'fist';
+  if(isOpenPalm(lm)) return 'palm';
+  if(isPeaceSign(lm))return 'peace';
+  return 'none';
+}
+
+// ── Gesture status HUD ───────────────────────────────────────────────────────
+const GESTURE_INFO = {
+  fist:    { emoji:'✊', label:'Fist',     morse:'• dot',    color:'#ff6030' },
+  palm:    { emoji:'✋', label:'Open Palm',morse:'— dash',   color:'#00d4ff' },
+  thumbUp: { emoji:'👍', label:'Thumb Up', morse:'word gap', color:'#ffd700' },
+  peace:   { emoji:'✌️', label:'Peace',    morse:'delete',   color:'#a855f7' },
+  none:    { emoji:'🤚', label:'...',      morse:'',         color:'rgba(255,255,255,.2)' }
+};
+
+// Inject HUD element once
+let _gestureHUD = null;
+function getGestureHUD(){
+  if(_gestureHUD) return _gestureHUD;
+  _gestureHUD = document.createElement('div');
+  _gestureHUD.id = 'gestureHUD';
+  _gestureHUD.innerHTML = `
+    <div id="g-emoji">🤚</div>
+    <div id="g-label">Show a gesture</div>
+    <div id="g-morse"></div>
+    <div id="g-hint">Morse mode off</div>
+  `;
+  // inject styles
+  const s = document.createElement('style');
+  s.textContent = `
+    #gestureHUD{
+      position:fixed;top:50%;right:24px;
+      transform:translateY(-50%);
+      background:rgba(5,5,20,.85);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:20px;padding:18px 20px;
+      text-align:center;z-index:300;
+      backdrop-filter:blur(16px);
+      min-width:130px;
+      font-family:'Inter',sans-serif;
+      transition:border-color .3s;
+    }
+    #g-emoji{font-size:3rem;line-height:1.1;transition:all .2s}
+    #g-label{font-size:.85rem;font-weight:700;color:#fff;margin-top:6px;
+      letter-spacing:.04em;transition:color .2s}
+    #g-morse{font-size:1.3rem;font-weight:900;min-height:1.6rem;
+      margin-top:4px;transition:all .2s}
+    #g-hint{font-size:.65rem;color:rgba(255,255,255,.35);
+      margin-top:8px;border-top:1px solid rgba(255,255,255,.08);
+      padding-top:6px;line-height:1.5}
+    #gestureHUD.detected{border-color:var(--hud-color,#fff);
+      box-shadow:0 0 24px var(--hud-glow,rgba(255,255,255,.1))}
+  `;
+  document.head.appendChild(s);
+  document.body.appendChild(_gestureHUD);
+  return _gestureHUD;
+}
+
+let _lastHUDGesture = '';
+function updateGestureHUD(name, morseOn){
+  const hud  = getGestureHUD();
+  const info = GESTURE_INFO[name] || GESTURE_INFO.none;
+  if(name === _lastHUDGesture) return;
+  _lastHUDGesture = name;
+  document.getElementById('g-emoji').textContent = info.emoji;
+  document.getElementById('g-label').textContent = info.label;
+  document.getElementById('g-label').style.color  = info.color;
+  document.getElementById('g-morse').textContent  = morseOn ? info.morse : '';
+  document.getElementById('g-morse').style.color  = info.color;
+  document.getElementById('g-hint').textContent   = morseOn
+    ? (name==='none' ? 'Hold a clear gesture' : '← detected!')
+    : 'Morse mode off';
+  hud.style.setProperty('--hud-color', info.color);
+  hud.style.setProperty('--hud-glow',  info.color+'55');
+  hud.classList.toggle('detected', name !== 'none');
+}
+
+// Snap detection state per hand
+const snapState={Left:{prevDist:null,snapFired:false},Right:{prevDist:null,snapFired:false}};
+
+function detectSnap(lm,hand,vw,vh){
+  const thumb=lm[4],mid=lm[12];
+  const d=dist(thumb,mid);
+  const state=snapState[hand]||{prevDist:null,snapFired:false};
+  snapState[hand]=state;
+  const touching=d<0.06;
+  const wasClose=state.prevDist!==null&&state.prevDist<0.08;
+  const nowFar=d>0.10;
+  if(wasClose&&nowFar&&!state.snapFired){
+    state.snapFired=true;
+    const pos=screenPos(lm[12],vw,vh);
+    if(canFire('snap')){
+      spawnHeart(pos.x,pos.y);
+      highlightHint('hint-snap');
+    }
+  }
+  if(touching) state.snapFired=false;
+  state.prevDist=d;
+}
+
+// Two-hand heart shape detection
+function detectTwoHandHeart(hands, vw, vh){
+  if(hands.length<2) return;
+  const [h0,h1]=hands;
+  const lm0=h0.landmarks,lm1=h1.landmarks;
+  // Tips of index fingers close together at top
+  const idx0=lm0[8],idx1=lm1[8];
+  const idxDist=dist(idx0,idx1);
+  // Wrists spread apart
+  const w0=lm0[0],w1=lm1[0];
+  const wristDist=dist(w0,w1);
+  // Thumbs close (forming bottom of heart)
+  const t0=lm0[4],t1=lm1[4];
+  const thumbDist=dist(t0,t1);
+  if(idxDist<0.12&&wristDist>0.2&&thumbDist<0.25){
+    const cx=((idx0.x+idx1.x)/2);
+    const cy=((idx0.y+idx1.y)/2);
+    const pos=screenPos({x:cx,y:cy},vw,vh);
+    if(canFire('heart')){
+      spawnFlower(pos.x,pos.y);
+      highlightHint('hint-heart');
+    }
+  }
+}
+
+function highlightHint(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.add('active');
+  setTimeout(()=>el.classList.remove('active'),2000);
+}
+
+// ─── Canvas drawing (hand skeleton) ──────────────────────────────────────────
+const CONNECTIONS=[
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],[0,17]
+];
+
+function drawHands(hands,vw,vh){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  hands.forEach(hand=>{
+    const lm=hand.landmarks;
+    // connections
+    ctx.lineWidth=2;
+    ctx.strokeStyle='rgba(0,212,255,0.5)';
+    CONNECTIONS.forEach(([a,b])=>{
+      const pa=screenPos(lm[a],vw,vh),pb=screenPos(lm[b],vw,vh);
+      ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke();
+    });
+    // landmarks
+    lm.forEach((l,i)=>{
+      const p=screenPos(l,vw,vh);
+      const r=i===0?6:4;
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+      ctx.fillStyle=i===0?'rgba(168,85,247,.9)':'rgba(0,212,255,.8)';
+      ctx.shadowColor='rgba(0,212,255,.8)';ctx.shadowBlur=8;
+      ctx.fill();ctx.shadowBlur=0;
+    });
+  });
+}
+
+// ─── MediaPipe Setup ──────────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click',async()=>{
+  document.getElementById('permScreen').style.display='none';
+  document.getElementById('app').style.display='flex';
+
+  const video=document.getElementById('video');
+  const camDot=document.getElementById('camDot');
+  const camTxt=document.getElementById('camTxt');
+  const mlDot=document.getElementById('mlDot');
+  const mlTxt=document.getElementById('mlTxt');
+
+  // Camera
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720,facingMode:'user'},audio:false});
+    video.srcObject=stream;
+    camDot.classList.add('active');
+    camTxt.textContent='Camera On';
+  }catch(e){
+    camTxt.textContent='Camera Error';
+    alert('Camera access denied: '+e.message);
+    return;
+  }
+
+  // Wait for MediaPipe to load
+  await new Promise(r=>setTimeout(r,500));
+
+  const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+  hands.setOptions({
+    maxNumHands:2,
+    modelComplexity:1,
+    minDetectionConfidence:.6,
+    minTrackingConfidence:.5
+  });
+
+  let handResults=[];
+  hands.onResults(results=>{
+    const vw=video.videoWidth||window.innerWidth;
+    const vh=video.videoHeight||window.innerHeight;
+    const multiHand=results.multiHandLandmarks||[];
+    const multiHandedness=results.multiHandedness||[];
+
+    handResults=multiHand.map((lm,i)=>({
+      landmarks:lm,
+      hand:multiHandedness[i]?.label||'Right'
+    }));
+
+    drawHands(handResults, window.innerWidth, window.innerHeight);
+    if(window.setAuraHands) window.setAuraHands(handResults);
+
+    // Single hand gestures (use first detected hand for primary gesture)
+    let primaryGesture = 'none';
+    handResults.forEach(h=>{
+      const lm=h.landmarks;
+      detectSnap(lm,h.hand,window.innerWidth,window.innerHeight);
+
+      // Visual effects — open palm & peace only fire when morse is OFF
+      const morseOn = !!(window._morseActive);
+      if(!morseOn){
+        if(isOpenPalm(lm)&&canFire('palm')){
+          const wrist=screenPos(lm[0],window.innerWidth,window.innerHeight);
+          spawnStars(wrist.x,wrist.y,10);
+          highlightHint('hint-palm');
+        }
+        if(isPeaceSign(lm)&&canFire('peace')){
+          const mid=screenPos(lm[9],window.innerWidth,window.innerHeight);
+          spawnButterflies(mid.x,mid.y,6);
+          highlightHint('hint-peace');
+        }
+      }
+
+      // Classify gesture for this hand
+      const g = classifyGesture(lm);
+      if(g !== 'none') primaryGesture = g;
+
+      // Feed into morse engine
+      if(window.processMorseGesture) window.processMorseGesture(g);
+    });
+
+    // Both palms open → speak morse message
+    if(handResults.length>=2 && handResults.every(h=>isOpenPalm(h.landmarks))){
+      primaryGesture = 'bothPalms';
+      if(window.processMorseGesture) window.processMorseGesture('bothPalms');
+    }
+
+    // Update live gesture HUD
+    const morseOn = !!(window._morseActive);
+    updateGestureHUD(primaryGesture, morseOn);
+
+    // Blind assist narration
+    if(window.narrateHands) window.narrateHands(handResults);
+
+    // Two hand heart
+    if(handResults.length>=2) detectTwoHandHeart(handResults,window.innerWidth,window.innerHeight);
+
+    // Update ML dot
+    if(multiHand.length>0){
+      mlDot.className='dot detecting';
+      mlTxt.textContent=`${multiHand.length} Hand${multiHand.length>1?'s':''} Detected`;
+    } else {
+      mlDot.className='dot active';
+      mlTxt.textContent='Tracking Ready';
+    }
+  });
+
+  mlDot.classList.add('active');
+  mlTxt.textContent='AI Ready';
+
+  // Use MediaPipe Camera util
+  const camera=new Camera(video,{
+    onFrame:async()=>{
+      await hands.send({image:video});
+    },
+    width:1280,height:720
+  });
+  camera.start();
+});
+</script>
+<script src="aura.js"></script>
+<script src="morse.js"></script>
+</body>
+</html>
